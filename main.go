@@ -197,11 +197,6 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request, p httproute
 	t.ExecuteTemplate(w, t.Name(), events)
 }
 
-func (app *App) FileServeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	fn := filepath.Join(app.Config.dirs.data, p.ByName("name"))
-	http.ServeFile(w, r, fn)
-}
-
 func main() {
 	config := Config{}
 
@@ -219,7 +214,7 @@ func main() {
 	app.Router.POST("/event", app.NewEventHandler) // TODO: should be proper api like /event/new /event/list /event/notify
 
 	// Handler for serving files in case we are not behind something else such as nginx
-	app.Router.GET("/data/:name", app.FileServeHandler)
+	http.Handle("/data/", http.FileServer(http.Dir(app.Config.dirs.data)))
 
 	// Start HTTP server
 	log.Println("Starting")

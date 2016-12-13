@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -109,18 +111,54 @@ func (app *App) CreateEvent(event Event) {
 }
 
 func (app *App) NewEventHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	r.ParseForm()
-	// TODO: needs multipart form
-	// TODO: form needs to generate path for  **saving** both the image/video, then save both
+	// Parse form
+	var err error
+	r.ParseMultipartForm(104857600) // 100 MB
+
+	// Get video & image files
+	videoFile, vHandler, err := r.FormFile("video")
+	imageFile, iHandler, err := r.FormFile("image")
+	if err != nil {
+		panic(err)
+	}
+
+	// Save files
+	vPath := filepath.Join(app.Config.dirs.videos, vHandler.Filename)
+	iPath := filepath.Join(app.Config.dirs.images, iHandler.Filename)
+
+	vDest, err := os.OpenFile(vPath, os.O_WRONLY|os.O_CREATE, 0775)
+	iDest, err := os.OpenFile(iPath, os.O_WRONLY|os.O_CREATE, 0775)
+	if err != nil {
+		panic(err)
+	}
+
+	// Defer closing form and destination files
+	defer videoFile.Close()
+	defer imageFile.Close()
+	defer vDest.Close()
+	defer iDest.Close()
+
+	// Copy contents from form file to destination
+	io.Copy(vDest, videoFile)
+	io.Copy(iDest, imageFile)
+
+	// Create event information
 	event := Event{
 		Name:  r.FormValue("name"),
-		Image: r.FormValue("image"),
-		Video: r.FormValue("video"),
+		Image: vPath,
+		Video: iPath,
 	}
+
+	// Create new event if fields are not null
 	if event.Name != "" && event.Image != "" && event.Video != "" {
+		w.WriteHeader(http.StatusAccepted)
 		app.CreateEvent(event)
 		// TODO: event should sent text message as well
+		return
 	}
+
+	// Something was null, return unacceptable
+	w.WriteHeader(http.StatusNotAcceptable)
 }
 
 func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -174,5 +212,6 @@ func main() {
 	app.Router.POST("/event", app.NewEventHandler)
 
 	// Start HTTP server
+	log.Println("Starting")
 	log.Fatal(http.ListenAndServe(config.addr, app.Router))
 }

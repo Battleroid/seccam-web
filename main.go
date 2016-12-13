@@ -3,7 +3,7 @@ package main
 import (
 	"database/sql"
 	"flag"
-	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -16,8 +16,7 @@ import (
 )
 
 type dirs struct {
-	videos string
-	images string
+	data string
 }
 
 type Config struct {
@@ -27,9 +26,10 @@ type Config struct {
 }
 
 type App struct {
-	DB     *sql.DB
-	Config *Config
-	Router *httprouter.Router
+	DB        *sql.DB
+	Config    *Config
+	Router    *httprouter.Router
+	Templates map[string]*template.Template
 }
 
 type Event struct {
@@ -69,23 +69,25 @@ func CreateTable(db *sql.DB) {
 }
 
 func New(config *Config) *App {
-	// Create database, tables and our router
+	// Create database, tables, templates map and our router
 	db := InitDB(config.db)
 	CreateTable(db)
 	router := httprouter.New()
 
-	// Create paths for storing videos and images
-	for _, path := range []string{config.dirs.videos, config.dirs.images} {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			os.Mkdir(path, 0775)
-		}
+	templates := map[string]*template.Template{}
+	templates["index"] = template.Must(template.ParseFiles("tmpl/index.html"))
+
+	// Create path for storing videos and images
+	if _, err := os.Stat(config.dirs.data); os.IsNotExist(err) {
+		os.Mkdir(config.dirs.data, 0775)
 	}
 
 	// Create App struct
 	app := &App{
-		DB:     db,
-		Config: config,
-		Router: router,
+		DB:        db,
+		Config:    config,
+		Router:    router,
+		Templates: templates,
 	}
 
 	return app
@@ -108,6 +110,8 @@ func (app *App) CreateEvent(event Event) {
 	if err2 != nil {
 		panic(err)
 	}
+
+	log.Println("Created new event", event.Name)
 }
 
 func (app *App) NewEventHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
@@ -123,8 +127,8 @@ func (app *App) NewEventHandler(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	// Save files
-	vPath := filepath.Join(app.Config.dirs.videos, vHandler.Filename)
-	iPath := filepath.Join(app.Config.dirs.images, iHandler.Filename)
+	vPath := filepath.Join(app.Config.dirs.data, vHandler.Filename)
+	iPath := filepath.Join(app.Config.dirs.data, iHandler.Filename)
 
 	vDest, err := os.OpenFile(vPath, os.O_WRONLY|os.O_CREATE, 0775)
 	iDest, err := os.OpenFile(iPath, os.O_WRONLY|os.O_CREATE, 0775)
@@ -145,8 +149,8 @@ func (app *App) NewEventHandler(w http.ResponseWriter, r *http.Request, p httpro
 	// Create event information
 	event := Event{
 		Name:  r.FormValue("name"),
-		Image: vPath,
-		Video: iPath,
+		Image: iPath,
+		Video: vPath,
 	}
 
 	// Create new event if fields are not null
@@ -189,9 +193,13 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request, p httproute
 		panic(err)
 	}
 
-	for _, event := range events {
-		fmt.Fprintf(w, "%d %s %s %s %s\n", event.Id, event.Name, event.Time, event.Video, event.Image)
-	}
+	t := app.Templates["index"]
+	t.ExecuteTemplate(w, t.Name(), events)
+}
+
+func (app *App) FileServeHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+	fn := filepath.Join(app.Config.dirs.data, p.ByName("name"))
+	http.ServeFile(w, r, fn)
 }
 
 func main() {
@@ -199,8 +207,7 @@ func main() {
 
 	// Set config values based off CLI params (or defaults)
 	flag.StringVar(&config.db, "db", "./events.db", "Database filename")
-	flag.StringVar(&config.dirs.videos, "video", "./videos", "Video directory")
-	flag.StringVar(&config.dirs.images, "image", "./images", "Image directory")
+	flag.StringVar(&config.dirs.data, "data", "./data", "Data directory")
 	flag.StringVar(&config.addr, "address", ":8080", "Address and port to listen on")
 	flag.Parse()
 
@@ -209,7 +216,10 @@ func main() {
 
 	// Our few routes
 	app.Router.GET("/", app.IndexHandler)
-	app.Router.POST("/event", app.NewEventHandler)
+	app.Router.POST("/event", app.NewEventHandler) // TODO: should be proper api like /event/new /event/list /event/notify
+
+	// Handler for serving files in case we are not behind something else such as nginx
+	app.Router.GET("/data/:name", app.FileServeHandler)
 
 	// Start HTTP server
 	log.Println("Starting")

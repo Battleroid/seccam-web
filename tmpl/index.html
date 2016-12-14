@@ -1,20 +1,35 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
+        <!-- meta -->
         <meta charset="UTF-8">
-        <title>Index</title>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <!-- rsrc -->
+        <link rel="stylesheet" href="/static/main.css">
+
+        <title>Events</title>
     </head>
     <body>
-        <h1>Index</h1>
-        {{range .}}
-        <div>
-            <h3>{{.Name}}</h3>
-            <time pubdate="{{.Time}}">{{.Time}}</time>
-            <video controls poster="{{.Image}}">
-                <source src="{{.Video}}">
-                Video tag unsupported.
-            </video>
-        </div>
-        {{end}}
+        <header role="banner">
+            <h1>Events</h1>
+        </header>
+        <main>
+            {{range .}}
+            <div class="event">
+                <header class="title">
+                    <h1>{{.Name}}</h1>
+                    <span>{{.Time}}</span>
+                </header>
+                <section>
+                    <video controls poster="{{.Image}}">
+                        <source src="{{.Video}}">
+                        Video tag unsupported.
+                    </video>
+                </section>
+            </div>
+            {{end}}
+        </main>
     </body>
 </html>

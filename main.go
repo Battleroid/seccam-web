@@ -307,6 +307,7 @@ func main() {
 
 	// Handler for serving files in case we are not behind something else such as nginx
 	app.Router.ServeFiles("/data/*filepath", http.Dir(app.Config.dirs.data))
+	app.Router.ServeFiles("/static/*filepath", http.Dir("static"))
 
 	// Start HTTP server
 	log.Println("Starting")

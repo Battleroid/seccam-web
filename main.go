@@ -19,12 +19,13 @@ import (
 	"github.com/sfreiberg/gotwilio"
 )
 
+// Data directories struct
 type dirs struct {
-	data   string
-	tmpl   string
-	static string
+	data string
+	tmpl string
 }
 
+// Twilio information struct
 type twilio struct {
 	sid   string
 	token string
@@ -32,6 +33,7 @@ type twilio struct {
 	to    string
 }
 
+// Configuration information struct
 type Config struct {
 	db   string
 	addr string
@@ -39,6 +41,7 @@ type Config struct {
 	dirs
 }
 
+// Application context struct
 type App struct {
 	DB        *sql.DB
 	Config    *Config
@@ -46,6 +49,7 @@ type App struct {
 	Templates map[string]*template.Template
 }
 
+// Event information struct
 type Event struct {
 	Id    int64
 	Name  string
@@ -54,8 +58,7 @@ type Event struct {
 	Image string
 }
 
-type Events []Event
-
+// Initialize our SQLite database.
 func InitDB(path string) *sql.DB {
 	// Attempt to open the database
 	db, err := sql.Open("sqlite3", path)
@@ -77,6 +80,7 @@ func InitDB(path string) *sql.DB {
 	return db
 }
 
+// Create our table in our database.
 func CreateTable(db *sql.DB) {
 	// Create table SQL statement
 	sql_table := `
@@ -95,6 +99,9 @@ func CreateTable(db *sql.DB) {
 	}
 }
 
+// Creates a new Application context. The context contains configuration information,
+// templating info, our router, and database access. Creation of the data directory is
+// also performed here.
 func New(config *Config) *App {
 	// Create database, tables, templates map and our router
 	db := InitDB(config.db)
@@ -121,6 +128,7 @@ func New(config *Config) *App {
 	return app
 }
 
+// Retrieves a single event with the given Id.
 func (app *App) GetEvent(id int64) Event {
 	var err error
 
@@ -146,6 +154,7 @@ func (app *App) GetEvent(id int64) Event {
 	return event
 }
 
+// Creates a new event with the given information.
 func (app *App) CreateEvent(event Event) int64 {
 	var err error
 
@@ -179,6 +188,9 @@ func (app *App) CreateEvent(event Event) int64 {
 	return rowId
 }
 
+// Accepts POST data and creates a new event if the information is acceptable.
+// Will also use ffmpeg (if installed) to convert the video to a more browser
+// friendly container.
 func (app *App) NewEventHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	var err error
 
@@ -247,6 +259,7 @@ func (app *App) NewEventHandler(w http.ResponseWriter, r *http.Request, p httpro
 	w.WriteHeader(http.StatusNotAcceptable)
 }
 
+// Renders the index of events
 func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 	// Prepare SQL query
 	sql_index := `SELECT * FROM events ORDER BY id DESC LIMIT 5`
@@ -281,6 +294,7 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request, p httproute
 	t.ExecuteTemplate(w, t.Name(), events)
 }
 
+// Sends an SMS with the relevant Event information, primitive at the moment
 func (app *App) SendSMS(event *Event) {
 	twilio := gotwilio.NewTwilioClient(app.Config.sid, app.Config.token)
 	message := fmt.Sprintf("Motion event captured at %s.", event.Time)
@@ -302,7 +316,6 @@ func main() {
 	flag.StringVar(&config.twilio.from, "from", "", "From number")
 	flag.StringVar(&config.twilio.to, "to", "", "To number")
 	flag.StringVar(&config.dirs.tmpl, "tmpl", "tmpl", "Template directory")
-	flag.StringVar(&config.dirs.static, "static", "static", "Static resource directory")
 	flag.Parse()
 
 	// Create application with our config

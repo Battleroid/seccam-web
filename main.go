@@ -20,7 +20,9 @@ import (
 )
 
 type dirs struct {
-	data string
+	data   string
+	tmpl   string
+	static string
 }
 
 type twilio struct {
@@ -101,7 +103,7 @@ func New(config *Config) *App {
 
 	// Build our [sparse] map of templates
 	templates := map[string]*template.Template{}
-	templates["index"] = template.Must(template.ParseFiles("tmpl/index.html"))
+	templates["index"] = template.Must(template.ParseFiles(filepath.Join(config.dirs.tmpl, "index.html")))
 
 	// Create path for storing videos and images
 	if _, err := os.Stat(config.dirs.data); os.IsNotExist(err) {
@@ -296,6 +298,8 @@ func main() {
 	flag.StringVar(&config.twilio.token, "token", "", "Twilio auth token")
 	flag.StringVar(&config.twilio.from, "from", "", "From number")
 	flag.StringVar(&config.twilio.to, "to", "", "To number")
+	flag.StringVar(&config.dirs.tmpl, "tmpl", "tmpl", "Template directory")
+	flag.StringVar(&config.dirs.static, "static", "static", "Static resource directory")
 	flag.Parse()
 
 	// Create application with our config
@@ -307,7 +311,7 @@ func main() {
 
 	// Handler for serving files in case we are not behind something else such as nginx
 	app.Router.ServeFiles("/data/*filepath", http.Dir(app.Config.dirs.data))
-	app.Router.ServeFiles("/static/*filepath", http.Dir("static"))
+	app.Router.ServeFiles("/static/*filepath", http.Dir(app.Config.dirs.static))
 
 	// Start HTTP server
 	log.Println("Starting")

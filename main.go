@@ -284,7 +284,10 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request, p httproute
 func (app *App) SendSMS(event *Event) {
 	twilio := gotwilio.NewTwilioClient(app.Config.sid, app.Config.token)
 	message := fmt.Sprintf("Motion event captured at %s.", event.Time)
-	twilio.SendSMS(app.Config.twilio.from, app.Config.twilio.to, message, "", "") // TODO: change to MMS
+	_, _, err := twilio.SendSMS(app.Config.twilio.from, app.Config.twilio.to, message, "", "") // TODO: change to MMS
+	if err != nil {
+		log.Printf("Error sending SMS to %s\n", app.Config.twilio.to)
+	}
 }
 
 func main() {

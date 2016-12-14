@@ -126,6 +126,7 @@ func (app *App) GetEvent(id int64) Event {
 	if err != nil {
 		panic(err)
 	}
+	defer row.Close()
 
 	// Get event info
 	row.Next()
@@ -282,7 +283,7 @@ func main() {
 	// Set config values based off CLI params (or defaults)
 	flag.StringVar(&config.db, "db", "./events.db", "Database filename")
 	flag.StringVar(&config.dirs.data, "data", "./data", "Data directory")
-	flag.StringVar(&config.addr, "address", ":8080", "Address and port to listen on")
+	flag.StringVar(&config.addr, "address", ":8000", "Address and port to listen on")
 	flag.StringVar(&config.twilio.sid, "sid", "", "Twilio SID")
 	flag.StringVar(&config.twilio.token, "token", "", "Twilio auth token")
 	flag.StringVar(&config.twilio.from, "from", "", "From number")

@@ -122,14 +122,9 @@ func (app *App) GetEvent(id int64) Event {
 
 	// Query for row id
 	sql_row := `SELECT * FROM events WHERE id = ?`
-	row, err := app.DB.Query(sql_row, 1)
-	if err != nil {
-		panic(err)
-	}
-	defer row.Close()
+	row := app.DB.QueryRow(sql_row, id)
 
 	// Get event info
-	row.Next()
 	event := Event{}
 	err = row.Scan(
 		&event.Id,
@@ -138,7 +133,9 @@ func (app *App) GetEvent(id int64) Event {
 		&event.Video,
 		&event.Image,
 	)
-	if err != nil {
+	if err == sql.ErrNoRows {
+		panic(err)
+	} else if err != nil {
 		panic(err)
 	}
 

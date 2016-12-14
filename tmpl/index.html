@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Index</title>
+    </head>
+    <body>
+        <h1>Index</h1>
+        {{range .}}
+        <div>
+            <h3>{{.Name}}</h3>
+            <time pubdate="{{.Time}}">{{.Time}}</time>
+            <video controls poster="{{.Image}}">
+                <source src="{{.Video}}">
+                Video tag unsupported.
+            </video>
+        </div>
+        {{end}}
+    </body>
+</html>

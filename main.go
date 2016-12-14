@@ -3,15 +3,17 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"fmt"
 	"html/template"
 	"io"
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"fmt"
 	"github.com/julienschmidt/httprouter"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/sfreiberg/gotwilio"
@@ -210,6 +212,19 @@ func (app *App) NewEventHandler(w http.ResponseWriter, r *http.Request, p httpro
 	io.Copy(vDest, videoFile)
 	io.Copy(iDest, imageFile)
 
+	// Re-encode video to something friendly for browsers
+	newVideoPath := strings.TrimSuffix(vPath, filepath.Ext(vPath)) + ".mp4"
+	cmd := exec.Command("ffmpeg", "-i", vPath, "-c:v", "libx264", "-crf", "21", "-vf", "scale=w=320:h=240", "-y", newVideoPath)
+
+	// Remove old video (avi) and set new path if successful
+	if err := cmd.Run(); err == nil {
+		os.Remove(vPath)
+		vPath = newVideoPath
+	} else {
+		log.Printf("Error converting %s to %s\n", vPath, newVideoPath)
+		log.Println(err.Error())
+	}
+
 	// Create event information
 	event := Event{
 		Name:  name,
@@ -264,10 +279,6 @@ func (app *App) IndexHandler(w http.ResponseWriter, r *http.Request, p httproute
 	t.ExecuteTemplate(w, t.Name(), events)
 }
 
-func (app *App) ListEventHandler(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-	// stub
-}
-
 func (app *App) SendSMS(event *Event) {
 	twilio := gotwilio.NewTwilioClient(app.Config.sid, app.Config.token)
 	message := fmt.Sprintf("Motion event captured at %s.", event.Time)
@@ -292,11 +303,10 @@ func main() {
 
 	// Our few routes
 	app.Router.GET("/", app.IndexHandler)
-	app.Router.GET("/event/list", app.ListEventHandler)
 	app.Router.POST("/event/new", app.NewEventHandler)
 
 	// Handler for serving files in case we are not behind something else such as nginx
-	http.Handle("/data/", http.FileServer(http.Dir(app.Config.dirs.data)))
+	app.Router.ServeFiles("/data/*filepath", http.Dir(app.Config.dirs.data))
 
 	// Start HTTP server
 	log.Println("Starting")
